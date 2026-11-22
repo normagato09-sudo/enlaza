@@ -14,6 +14,11 @@ export function AdCard({ ad, linkable = true }: { ad: Ad; linkable?: boolean }) 
       <div className="flex flex-wrap items-center gap-1.5">
         <CategoryChip category={ad.category} />
         <PayChip pay={ad.pay} />
+        {ad.niche && (
+          <span className="rounded-full bg-chip px-2.5 py-1 text-[13px] font-semibold text-ink-2">
+            {t.niches[ad.niche]}
+          </span>
+        )}
       </div>
       <h3 className="m-0 font-display text-[19px] leading-tight font-bold break-words">
         {linkable ? (

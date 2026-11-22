@@ -85,6 +85,11 @@ export function AdDetail({ ad, me, isOwner, expired, applications, mySlots, repo
           <div className="flex flex-wrap items-center gap-2">
             <CategoryChip category={ad.category} />
             <PayChip pay={ad.pay} />
+            {ad.niche && (
+              <span className="rounded-full bg-chip px-2.5 py-1 text-[13px] font-semibold text-ink-2">
+                {t.niches[ad.niche]}
+              </span>
+            )}
             <span className="text-sm text-subtle">
               {t.published(timeAgo(ad.createdAt, lang))} ·{" "}
               {expired ? t.expired : t.expiresIn(daysUntil(ad.expiresAt))}
@@ -222,13 +227,12 @@ export function AdDetail({ ad, me, isOwner, expired, applications, mySlots, repo
                       </span>
                     </Link>
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => copy(a.user.username, "user")}
-                        className="min-h-10 cursor-pointer rounded-lg border border-field bg-white px-3 text-xs font-semibold text-ink"
+                      <Link
+                        href={`/mensajes/${a.user.username}`}
+                        className="flex min-h-10 items-center rounded-lg border border-field bg-white px-3 text-xs font-semibold text-ink no-underline hover:text-ink"
                       >
-                        {t.copyDiscord}
-                      </button>
+                        {t.sendMessage}
+                      </Link>
                       <button
                         type="button"
                         disabled={pending}
@@ -240,11 +244,6 @@ export function AdDetail({ ad, me, isOwner, expired, applications, mySlots, repo
                     </div>
                   </div>
                 ))
-              )}
-              {copied === "user" && (
-                <p role="status" className="m-0 text-xs font-semibold text-trabajo">
-                  {t.copiedUser}
-                </p>
               )}
             </div>
           ) : (
@@ -270,14 +269,23 @@ export function AdDetail({ ad, me, isOwner, expired, applications, mySlots, repo
                   {ad.user.confirmed > 0 ? t.repCount(ad.user.confirmed) : t.repNew}
                 </span>
               </div>
+              {me ? (
+                <Link
+                  href={`/mensajes/${ad.user.username}`}
+                  className="flex min-h-12 items-center justify-center rounded-[10px] bg-servicios text-base font-semibold text-white no-underline hover:text-white"
+                >
+                  {t.sendMessage}
+                </Link>
+              ) : (
+                <LoginButton className="justify-center" />
+              )}
               <button
                 type="button"
                 onClick={() => copy(ad.user.username, "user")}
-                className="min-h-12 cursor-pointer rounded-[10px] bg-servicios text-base font-semibold text-white"
+                className="min-h-11 cursor-pointer rounded-[10px] border border-field bg-white text-sm font-semibold text-ink"
               >
                 {copied === "user" ? t.copiedUser : t.copyDiscord}
               </button>
-              <p className="m-0 text-xs text-muted">{t.contactNote}</p>
             </div>
           )}
           <div className="flex flex-col gap-2 rounded-2xl border border-[#F1DFA8] bg-[#FFF8E6] p-5">

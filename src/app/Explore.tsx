@@ -4,9 +4,11 @@ import { useMemo, useState } from "react";
 import { AdCard } from "@/components/AdCard";
 import { categoryDot } from "@/components/ui";
 import {
+  NICHES,
   roleCategories,
   type Ad,
   type Category,
+  type NicheKey,
   type PayType,
   type Role,
   type SkillKey,
@@ -38,6 +40,7 @@ export function Explore({ ads, loginError }: { ads: Ad[]; loginError?: boolean }
   const [typed, setTyped] = useState("");
   const [pays, setPays] = useState<PayType[]>([]);
   const [skills, setSkills] = useState<SkillKey[]>([]);
+  const [niches, setNiches] = useState<NicheKey[]>([]);
   const [onlyRep, setOnlyRep] = useState(false);
   const [langs, setLangs] = useState<("es" | "en")[]>(["es", "en"]);
   const [sort, setSort] = useState<Sort>("new");
@@ -65,6 +68,7 @@ export function Explore({ ads, loginError }: { ads: Ad[]; loginError?: boolean }
       if (tab !== "todos" && ad.category !== tab) return false;
       if (pays.length && !pays.includes(ad.pay)) return false;
       if (skills.length && !skills.includes(ad.skill)) return false;
+      if (niches.length && !(ad.niche && niches.includes(ad.niche))) return false;
       if (!langs.includes(ad.lang)) return false;
       if (onlyRep && !(ad.user.confirmed > 0)) return false;
       if (q) {
@@ -78,11 +82,12 @@ export function Explore({ ads, loginError }: { ads: Ad[]; loginError?: boolean }
       if (sort === "exp") return a.expiresAt.localeCompare(b.expiresAt);
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [ads, allowed, tab, pays, skills, langs, onlyRep, query, sort, t]);
+  }, [ads, allowed, tab, pays, skills, niches, langs, onlyRep, query, sort, t]);
 
   const clear = () => {
     setPays([]);
     setSkills([]);
+    setNiches([]);
     setOnlyRep(false);
     setLangs(["es", "en"]);
     setQuery("");
@@ -211,7 +216,9 @@ export function Explore({ ads, loginError }: { ads: Ad[]; loginError?: boolean }
                     ? "border-servicios bg-servicios"
                     : tb.id === "trabajo"
                       ? "border-trabajo bg-trabajo"
-                      : "border-equipo bg-equipo";
+                      : tb.id === "alianza"
+                        ? "border-alianza bg-alianza"
+                        : "border-equipo bg-equipo";
               return (
                 <button
                   key={tb.id}
@@ -281,6 +288,21 @@ export function Explore({ ads, loginError }: { ads: Ad[]; loginError?: boolean }
                   onChange={() => setSkills((v) => toggle(v, s))}
                 />
                 {t.skills[s]}
+              </label>
+            ))}
+          </fieldset>
+
+          <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
+            <legend className="mb-2.5 text-sm font-semibold">{t.fNiche}</legend>
+            {NICHES.map((n) => (
+              <label key={n} className="flex items-center gap-2.5 text-[15px]">
+                <input
+                  type="checkbox"
+                  className="h-[18px] w-[18px]"
+                  checked={niches.includes(n)}
+                  onChange={() => setNiches((v) => toggle(v, n))}
+                />
+                {t.niches[n]}
               </label>
             ))}
           </fieldset>

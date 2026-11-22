@@ -7,12 +7,14 @@ export const categoryStyle: Record<Category, string> = {
   servicios: "bg-servicios-bg text-servicios",
   trabajo: "bg-trabajo-bg text-trabajo",
   equipo: "bg-equipo-bg text-equipo",
+  alianza: "bg-alianza-bg text-alianza",
 };
 
 export const categoryDot: Record<Category, string> = {
   servicios: "bg-servicios",
   trabajo: "bg-trabajo",
   equipo: "bg-equipo",
+  alianza: "bg-alianza",
 };
 
 const payStyle: Record<PayType, string> = {

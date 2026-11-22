@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS ads (
   expires_at TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ads_expires_idx ON ads (expires_at);
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS niche TEXT;
 
 CREATE TABLE IF NOT EXISTS applications (
   ad_id TEXT NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
@@ -51,6 +52,36 @@ CREATE TABLE IF NOT EXISTS reports (
   user_id TEXT NOT NULL REFERENCES users(discord_id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (ad_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGSERIAL PRIMARY KEY,
+  from_id TEXT NOT NULL REFERENCES users(discord_id) ON DELETE CASCADE,
+  to_id TEXT NOT NULL REFERENCES users(discord_id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  read_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS messages_to_idx ON messages (to_id, read_at);
+CREATE INDEX IF NOT EXISTS messages_pair_idx ON messages (from_id, to_id, created_at);
+
+CREATE TABLE IF NOT EXISTS collaborations (
+  id TEXT PRIMARY KEY,
+  a_id TEXT NOT NULL REFERENCES users(discord_id) ON DELETE CASCADE,
+  b_id TEXT NOT NULL REFERENCES users(discord_id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS collaborations_pair_idx
+  ON collaborations (LEAST(a_id, b_id), GREATEST(a_id, b_id));
+
+CREATE TABLE IF NOT EXISTS reviews (
+  collab_id TEXT NOT NULL REFERENCES collaborations(id) ON DELETE CASCADE,
+  from_id TEXT NOT NULL REFERENCES users(discord_id) ON DELETE CASCADE,
+  to_id TEXT NOT NULL REFERENCES users(discord_id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (collab_id, from_id)
 );
 `;
 

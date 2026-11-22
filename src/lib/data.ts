@@ -1,6 +1,6 @@
 /** Tipos y utilidades compartidos entre servidor y navegador. */
 
-export type Category = "servicios" | "trabajo" | "equipo";
+export type Category = "servicios" | "trabajo" | "equipo" | "alianza";
 export type PayType = "pagado" | "voluntario" | "reparto";
 export type SkillKey =
   | "diseno"
@@ -12,7 +12,31 @@ export type SkillKey =
   | "otra";
 export type Role = "trabajar" | "contratar" | "proyecto" | "todo";
 
-export const CATEGORIES: Category[] = ["servicios", "trabajo", "equipo"];
+export const CATEGORIES: Category[] = ["servicios", "trabajo", "equipo", "alianza"];
+
+export type NicheKey =
+  | "gaming"
+  | "arte"
+  | "musica"
+  | "tecnologia"
+  | "crecimiento"
+  | "educacion"
+  | "contenido"
+  | "moda"
+  | "deporte"
+  | "otro";
+export const NICHES: NicheKey[] = [
+  "gaming",
+  "arte",
+  "musica",
+  "tecnologia",
+  "crecimiento",
+  "educacion",
+  "contenido",
+  "moda",
+  "deporte",
+  "otro",
+];
 export const PAY_TYPES: PayType[] = ["pagado", "voluntario", "reparto"];
 export const SKILLS: SkillKey[] = ["programacion", "diseno", "video", "bots", "redes", "voz", "otra"];
 
@@ -28,7 +52,7 @@ export type PublicUser = {
   banned: boolean;
 };
 
-export type Viewer = PublicUser & { isAdmin: boolean };
+export type Viewer = PublicUser & { isAdmin: boolean; unread: number };
 
 export type ModerationItem = Ad & { reports: number; scam: boolean };
 
@@ -41,11 +65,22 @@ export type Ad = {
   skill: SkillKey;
   lang: "es" | "en";
   slots: Slot[];
+  niche: NicheKey | null;
   status: "active" | "review";
   createdAt: string; // ISO
   expiresAt: string; // ISO
   user: PublicUser;
 };
+
+export type Message = { id: string; fromMe: boolean; body: string; createdAt: string };
+export type Conversation = { user: PublicUser; last: string; lastAt: string; unread: number };
+export type Review = { from: PublicUser; body: string; createdAt: string };
+export type CollabState =
+  | { kind: "none" }
+  | { kind: "sent" }
+  | { kind: "received"; id: string }
+  | { kind: "confirmed"; id: string; reviewed: boolean };
+export type PendingCollab = { id: string; user: PublicUser; createdAt: string };
 
 export type Application = { slot: string; user: PublicUser; createdAt: string };
 
@@ -53,8 +88,8 @@ export type Application = { slot: string; user: PublicUser; createdAt: string };
 export const roleCategories: Record<Role, Category[]> = {
   trabajar: ["equipo"],
   contratar: ["servicios", "trabajo"],
-  proyecto: ["trabajo", "servicios", "equipo"],
-  todo: ["servicios", "trabajo", "equipo"],
+  proyecto: ["trabajo", "servicios", "equipo", "alianza"],
+  todo: ["servicios", "trabajo", "equipo", "alianza"],
 };
 
 export function hoursSince(iso: string) {

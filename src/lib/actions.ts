@@ -4,15 +4,17 @@ import { refresh } from "next/cache";
 import { query } from "./db";
 import {
   CATEGORIES,
+  NICHES,
   PAY_TYPES,
   SKILLS,
   looksLikeScam,
   type Category,
+  type NicheKey,
   type PayType,
   type SkillKey,
   type Slot,
 } from "./data";
-import { getAdById, newId } from "./queries";
+import { getAdById, getUserByUsername, newId } from "./queries";
 import { getCurrentUser, isAdmin } from "./session";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -28,6 +30,7 @@ export type NewAdInput = {
   lang: "es" | "en";
   weeks: 1 | 4;
   slots: { name: string; taken: boolean }[];
+  niche: NicheKey | null;
 };
 
 export async function createAd(input: NewAdInput): Promise<Result<{ id: string; review: boolean }>> {
@@ -43,6 +46,8 @@ export async function createAd(input: NewAdInput): Promise<Result<{ id: string; 
   if (title.length < 8) return { ok: false, error: "title" };
   if (description.length < 20) return { ok: false, error: "description" };
 
+  const niche = input.niche && NICHES.includes(input.niche) ? input.niche : null;
+  if (input.category === "alianza" && !niche) return { ok: false, error: "niche" };
   const lang = input.lang === "en" ? "en" : "es";
   const weeks = input.weeks === 1 ? 1 : 4;
   const slots: Slot[] =
@@ -57,9 +62,9 @@ export async function createAd(input: NewAdInput): Promise<Result<{ id: string; 
   const review = looksLikeScam(`${title} ${description}`);
   const id = newId();
   await query(
-    `INSERT INTO ads (id, user_id, category, pay, title, description, skill, lang, slots, status, expires_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10, now() + ($11 || ' days')::interval)`,
-    [id, user.id, input.category, input.pay, title, description, input.skill, lang, JSON.stringify(slots), review ? "review" : "active", String(weeks * 7)],
+    `INSERT INTO ads (id, user_id, category, pay, title, description, skill, lang, slots, status, expires_at, niche)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10, now() + ($11 || ' days')::interval, $12)`,
+    [id, user.id, input.category, input.pay, title, description, input.skill, lang, JSON.stringify(slots), review ? "review" : "active", String(weeks * 7), niche],
   );
   return { ok: true, id, review };
 }
@@ -90,6 +95,8 @@ export async function acceptApplicant(adId: string, slot: string, username: stri
   const slots = ad.slots.map((s) => (s.name === slot ? { ...s, takenBy: username } : s));
   await query("UPDATE ads SET slots = $2::jsonb WHERE id = $1", [adId, JSON.stringify(slots)]);
   await query("DELETE FROM applications WHERE ad_id = $1 AND slot = $2", [adId, slot]);
+  const member = await getUserByUsername(username);
+  if (member && member.id !== user.id) await confirmPair(user.id, member.id);
   refresh();
   return { ok: true };
 }
@@ -162,6 +169,98 @@ export async function setBanned(userId: string, banned: boolean): Promise<Result
   if (!admin) return { ok: false, error: "forbidden" };
   if (admin.id === userId) return { ok: false, error: "self" };
   await query("UPDATE users SET banned = $2 WHERE discord_id = $1", [userId, banned]);
+  refresh();
+  return { ok: true };
+}
+
+// ---------- Mensajes ----------
+
+export async function sendMessage(toUsername: string, body: string): Promise<Result> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "login" };
+  if (user.banned) return { ok: false, error: "banned" };
+  const text = String(body ?? "").trim().slice(0, 2000);
+  if (!text) return { ok: false, error: "empty" };
+  const to = await getUserByUsername(toUsername);
+  if (!to || to.id === user.id) return { ok: false, error: "notfound" };
+  await query("INSERT INTO messages (from_id, to_id, body) VALUES ($1, $2, $3)", [user.id, to.id, text]);
+  refresh();
+  return { ok: true };
+}
+
+// ---------- Colaboraciones y valoraciones ----------
+
+/** Deja la colaboración entre dos personas confirmada y suma 1 a la reputación de ambas. */
+async function confirmPair(aId: string, bId: string) {
+  const existing = await query<{ id: string; status: string }>(
+    `SELECT id, status FROM collaborations
+     WHERE LEAST(a_id, b_id) = LEAST($1, $2) AND GREATEST(a_id, b_id) = GREATEST($1, $2)`,
+    [aId, bId],
+  );
+  if (existing[0]?.status === "confirmed") return;
+  if (existing[0]) {
+    await query("UPDATE collaborations SET status = 'confirmed' WHERE id = $1", [existing[0].id]);
+  } else {
+    await query("INSERT INTO collaborations (id, a_id, b_id, status) VALUES ($1, $2, $3, 'confirmed')", [newId(), aId, bId]);
+  }
+  await query("UPDATE users SET confirmed_count = confirmed_count + 1 WHERE discord_id IN ($1, $2)", [aId, bId]);
+}
+
+/** "Hemos colaborado": la otra persona tiene que confirmarlo. */
+export async function requestCollab(otherId: string): Promise<Result> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "login" };
+  if (user.banned) return { ok: false, error: "banned" };
+  if (user.id === otherId) return { ok: false, error: "self" };
+  await query(
+    "INSERT INTO collaborations (id, a_id, b_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+    [newId(), user.id, otherId],
+  );
+  refresh();
+  return { ok: true };
+}
+
+export async function confirmCollab(collabId: string): Promise<Result> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "login" };
+  const rows = await query<{ a_id: string; b_id: string; status: string }>(
+    "SELECT a_id, b_id, status FROM collaborations WHERE id = $1",
+    [collabId],
+  );
+  const c = rows[0];
+  if (!c || c.b_id !== user.id || c.status !== "pending") return { ok: false, error: "forbidden" };
+  await confirmPair(c.a_id, c.b_id);
+  refresh();
+  return { ok: true };
+}
+
+export async function declineCollab(collabId: string): Promise<Result> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "login" };
+  await query("DELETE FROM collaborations WHERE id = $1 AND b_id = $2 AND status = 'pending'", [collabId, user.id]);
+  refresh();
+  return { ok: true };
+}
+
+export async function leaveReview(collabId: string, body: string): Promise<Result> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "login" };
+  if (user.banned) return { ok: false, error: "banned" };
+  const text = String(body ?? "").trim().slice(0, 400);
+  if (text.length < 5) return { ok: false, error: "empty" };
+  const rows = await query<{ a_id: string; b_id: string; status: string }>(
+    "SELECT a_id, b_id, status FROM collaborations WHERE id = $1",
+    [collabId],
+  );
+  const c = rows[0];
+  if (!c || c.status !== "confirmed" || (c.a_id !== user.id && c.b_id !== user.id)) {
+    return { ok: false, error: "forbidden" };
+  }
+  const toId = c.a_id === user.id ? c.b_id : c.a_id;
+  await query(
+    "INSERT INTO reviews (collab_id, from_id, to_id, body) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
+    [collabId, user.id, toId, text],
+  );
   refresh();
   return { ok: true };
 }

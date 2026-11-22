@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { WarnIcon } from "@/components/ui";
 import { createAd } from "@/lib/actions";
-import { SKILLS, looksLikeScam, type Category, type PayType, type SkillKey } from "@/lib/data";
+import { NICHES, SKILLS, looksLikeScam, type Category, type NicheKey, type PayType, type SkillKey } from "@/lib/data";
 import { useLang } from "@/lib/i18n";
 
 type SlotDraft = { name: string; taken: boolean };
@@ -14,6 +14,7 @@ const kindStyle: Record<Category, { on: string; dot: string }> = {
   servicios: { on: "border-servicios bg-servicios-bg", dot: "bg-servicios" },
   trabajo: { on: "border-trabajo bg-trabajo-bg", dot: "bg-trabajo" },
   equipo: { on: "border-equipo bg-equipo-bg", dot: "bg-equipo" },
+  alianza: { on: "border-alianza bg-alianza-bg", dot: "bg-alianza" },
 };
 const payOn: Record<PayType, string> = {
   pagado: "border-ink bg-chip",
@@ -35,6 +36,7 @@ export function PublishForm({ username }: { username: string }) {
   const [skill, setSkill] = useState<SkillKey>("programacion");
   const [adLang, setAdLang] = useState<"es" | "en">("es");
   const [weeks, setWeeks] = useState<1 | 4>(4);
+  const [niche, setNiche] = useState<NicheKey | "">("");
   const [slots, setSlots] = useState<SlotDraft[]>([
     { name: "", taken: true },
     { name: "", taken: false },
@@ -47,6 +49,7 @@ export function PublishForm({ username }: { username: string }) {
     { id: "servicios", hint: t.kServiciosHint },
     { id: "trabajo", hint: t.kTrabajoHint },
     { id: "equipo", hint: t.kEquipoHint },
+    { id: "alianza", hint: t.kAlianzaHint },
   ];
   const pays: { id: PayType; hint: string }[] = [
     { id: "pagado", hint: t.pPagadoHint },
@@ -61,6 +64,7 @@ export function PublishForm({ username }: { username: string }) {
     if (!pay) errs.push(t.errPay);
     if (title.trim().length < 8) errs.push(t.errTitle);
     if (desc.trim().length < 20) errs.push(t.errDesc);
+    if (kind === "alianza" && !niche) errs.push(t.errNiche);
     setErrors(errs);
     if (errs.length || !kind || !pay) {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -77,6 +81,7 @@ export function PublishForm({ username }: { username: string }) {
           lang: adLang,
           weeks,
           slots,
+          niche: niche || null,
         });
         if (res.ok) {
           router.push(`/anuncio/${res.id}`);
@@ -208,6 +213,25 @@ export function PublishForm({ username }: { username: string }) {
               </span>
             </div>
           )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="nicho" className="text-[15px] font-semibold">
+            {t.niche}{" "}
+            {kind === "alianza" ? <span className="text-danger">*</span> : <span className="font-normal text-muted">{t.nicheOptional}</span>}
+          </label>
+          <select
+            id="nicho"
+            value={niche}
+            onChange={(e) => setNiche(e.target.value as NicheKey | "")}
+            className={`min-h-[50px] ${fieldClass}`}
+          >
+            <option value="">{t.nicheAny}</option>
+            {NICHES.map((n) => (
+              <option key={n} value={n}>
+                {t.niches[n]}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
           <div className="flex flex-col gap-1.5">

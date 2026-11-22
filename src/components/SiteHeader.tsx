@@ -54,8 +54,16 @@ export function SiteHeader({ user }: { user: Viewer | null }) {
   const pathname = usePathname();
   if (pathname === "/bienvenida") return null;
 
-  const nav = [{ href: "/", label: t.navExplore, active: pathname === "/" }];
+  const nav: { href: string; label: string; active: boolean; badge?: number }[] = [
+    { href: "/", label: t.navExplore, active: pathname === "/" },
+  ];
   if (user) {
+    nav.push({
+      href: "/mensajes",
+      label: t.navMessages,
+      active: pathname.startsWith("/mensajes"),
+      badge: user.unread,
+    });
     nav.push({
       href: `/perfil/${user.username}`,
       label: t.navProfile,
@@ -86,6 +94,11 @@ export function SiteHeader({ user }: { user: Viewer | null }) {
               }`}
             >
               {n.label}
+              {n.badge ? (
+                <span className="ml-1.5 rounded-full bg-danger px-1.5 py-0.5 text-xs font-bold text-white">
+                  {n.badge}
+                </span>
+              ) : null}
             </Link>
           ))}
         </nav>

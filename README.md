@@ -11,6 +11,9 @@ Web para ofrecer servicios, buscar trabajo y encontrar socio o equipo para un pr
 - Apuntarse a un puesto; quien publica ve las solicitudes y acepta a la persona (el puesto queda cubierto).
 - Perfil con los anuncios de cada persona; renovar anuncios caducados o a punto de caducar; borrar anuncios.
 - Español e inglés (botón ES/EN).
+- Mensajes entre personas (`/mensajes`), con aviso de mensajes sin leer.
+- Colaboraciones confirmadas por las dos partes y valoraciones; aceptar a alguien en un puesto cuenta como colaboración.
+- Sección "Busco alianza" y campo de nicho, con filtro por nicho.
 - Panel de moderación (`/moderacion`): aprobar anuncios en revisión, descartar denuncias, borrar anuncios y bloquear o desbloquear personas.
 
 Variables de entorno en Vercel: `DATABASE_URL` (la pone Neon), `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` y `ENLAZA_ADMINS` (nombres de usuario de Discord de los moderadores, separados por comas).

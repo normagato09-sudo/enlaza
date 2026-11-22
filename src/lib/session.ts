@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { query } from "./db";
 import type { PublicUser, Viewer } from "./data";
-import { toPublicUser, type UserRow } from "./queries";
+import { toPublicUser, unreadCount, type UserRow } from "./queries";
 
 export const SESSION_COOKIE = "enlaza_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 días
@@ -73,5 +73,6 @@ export function isAdmin(user: Pick<PublicUser, "id" | "username"> | null) {
 
 export async function getViewer(): Promise<Viewer | null> {
   const user = await getCurrentUser();
-  return user ? { ...user, isAdmin: isAdmin(user) } : null;
+  if (!user) return null;
+  return { ...user, isAdmin: isAdmin(user), unread: await unreadCount(user.id) };
 }

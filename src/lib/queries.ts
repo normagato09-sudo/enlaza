@@ -2,7 +2,21 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import { query } from "./db";
-import type { Ad, Application, Category, PayType, PublicUser, SkillKey, Slot } from "./data";
+import type {
+  Ad,
+  Application,
+  Category,
+  CollabState,
+  Conversation,
+  Message,
+  NicheKey,
+  PayType,
+  PendingCollab,
+  PublicUser,
+  Review,
+  SkillKey,
+  Slot,
+} from "./data";
 
 export type UserRow = {
   discord_id: string;
@@ -24,6 +38,7 @@ type AdRow = {
   skill: SkillKey;
   lang: "es" | "en";
   slots: Slot[] | string;
+  niche: NicheKey | null;
   status: "active" | "review";
   created_at: string | Date;
   expires_at: string | Date;
@@ -67,6 +82,7 @@ function toAd(r: AdRow): Ad {
     skill: r.skill,
     lang: r.lang,
     slots: typeof r.slots === "string" ? JSON.parse(r.slots) : r.slots ?? [],
+    niche: r.niche ?? null,
     status: r.status,
     createdAt: iso(r.created_at),
     expiresAt: iso(r.expires_at),
@@ -172,6 +188,113 @@ export async function listForModeration(): Promise<{ ad: Ad; reports: number }[]
 export async function listBannedUsers(): Promise<PublicUser[]> {
   const rows = await query<UserRow>("SELECT * FROM users WHERE banned ORDER BY username");
   return rows.map(toPublicUser);
+}
+
+// ---------- Mensajes ----------
+
+type PrefixedUser = { [k: string]: unknown };
+function userFrom(r: PrefixedUser, prefix: string): PublicUser {
+  return toPublicUser({
+    discord_id: r[`${prefix}discord_id`] as string,
+    username: r[`${prefix}username`] as string,
+    display_name: (r[`${prefix}display_name`] as string | null) ?? null,
+    avatar: (r[`${prefix}avatar`] as string | null) ?? null,
+    confirmed_count: Number(r[`${prefix}confirmed_count`]) || 0,
+    created_at: r[`${prefix}created_at`] as string,
+    banned: Boolean(r[`${prefix}banned`]),
+  });
+}
+const USER_COLS = (alias: string, prefix: string) =>
+  ["discord_id", "username", "display_name", "avatar", "confirmed_count", "created_at", "banned"]
+    .map((c) => `${alias}.${c} AS ${prefix}${c}`)
+    .join(", ");
+
+export async function unreadCount(userId: string): Promise<number> {
+  const rows = await query<{ n: number }>(
+    "SELECT count(*)::int AS n FROM messages WHERE to_id = $1 AND read_at IS NULL",
+    [userId],
+  );
+  return rows[0]?.n ?? 0;
+}
+
+export async function listConversations(meId: string): Promise<Conversation[]> {
+  const rows = await query<PrefixedUser & { body: string; created_at: string; unread: number }>(
+    `WITH mine AS (
+       SELECT CASE WHEN from_id = $1 THEN to_id ELSE from_id END AS other_id, body, created_at,
+              (to_id = $1 AND read_at IS NULL) AS is_unread
+       FROM messages WHERE from_id = $1 OR to_id = $1
+     ), last AS (
+       SELECT DISTINCT ON (other_id) other_id, body, created_at FROM mine ORDER BY other_id, created_at DESC
+     )
+     SELECT last.body, last.created_at,
+            (SELECT count(*)::int FROM mine m WHERE m.other_id = last.other_id AND m.is_unread) AS unread,
+            ${USER_COLS("u", "u_")}
+     FROM last JOIN users u ON u.discord_id = last.other_id
+     ORDER BY last.created_at DESC`,
+    [meId],
+  );
+  return rows.map((r) => ({
+    user: userFrom(r, "u_"),
+    last: r.body,
+    lastAt: iso(r.created_at),
+    unread: Number(r.unread) || 0,
+  }));
+}
+
+export async function listThread(meId: string, otherId: string): Promise<Message[]> {
+  await query(
+    "UPDATE messages SET read_at = now() WHERE to_id = $1 AND from_id = $2 AND read_at IS NULL",
+    [meId, otherId],
+  );
+  const rows = await query<{ id: string | number; from_id: string; body: string; created_at: string }>(
+    `SELECT * FROM (
+       SELECT id, from_id, body, created_at FROM messages
+       WHERE (from_id = $1 AND to_id = $2) OR (from_id = $2 AND to_id = $1)
+       ORDER BY created_at DESC LIMIT 300
+     ) t ORDER BY created_at ASC`,
+    [meId, otherId],
+  );
+  return rows.map((r) => ({
+    id: String(r.id),
+    fromMe: r.from_id === meId,
+    body: r.body,
+    createdAt: iso(r.created_at),
+  }));
+}
+
+// ---------- Colaboraciones y valoraciones ----------
+
+export async function getCollabState(meId: string, otherId: string): Promise<CollabState> {
+  const rows = await query<{ id: string; a_id: string; status: string }>(
+    `SELECT id, a_id, status FROM collaborations
+     WHERE LEAST(a_id, b_id) = LEAST($1, $2) AND GREATEST(a_id, b_id) = GREATEST($1, $2)`,
+    [meId, otherId],
+  );
+  const c = rows[0];
+  if (!c) return { kind: "none" };
+  if (c.status === "pending") return c.a_id === meId ? { kind: "sent" } : { kind: "received", id: c.id };
+  const reviewed = await query("SELECT 1 FROM reviews WHERE collab_id = $1 AND from_id = $2", [c.id, meId]);
+  return { kind: "confirmed", id: c.id, reviewed: reviewed.length > 0 };
+}
+
+export async function listPendingCollabs(meId: string): Promise<PendingCollab[]> {
+  const rows = await query<PrefixedUser & { id: string; created_at: string }>(
+    `SELECT c.id, c.created_at, ${USER_COLS("u", "u_")}
+     FROM collaborations c JOIN users u ON u.discord_id = c.a_id
+     WHERE c.b_id = $1 AND c.status = 'pending' ORDER BY c.created_at DESC`,
+    [meId],
+  );
+  return rows.map((r) => ({ id: r.id, createdAt: iso(r.created_at), user: userFrom(r, "u_") }));
+}
+
+export async function listReviews(userId: string): Promise<Review[]> {
+  const rows = await query<PrefixedUser & { body: string; created_at: string }>(
+    `SELECT r.body, r.created_at, ${USER_COLS("u", "u_")}
+     FROM reviews r JOIN users u ON u.discord_id = r.from_id
+     WHERE r.to_id = $1 ORDER BY r.created_at DESC LIMIT 50`,
+    [userId],
+  );
+  return rows.map((r) => ({ from: userFrom(r, "u_"), body: r.body, createdAt: iso(r.created_at) }));
 }
 
 export function newId() {

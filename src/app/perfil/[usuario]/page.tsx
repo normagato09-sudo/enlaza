@@ -1,7 +1,13 @@
-import { connection } from "next/server";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
-import { getUserByUsername, listAdsByUser } from "@/lib/queries";
+import {
+  getCollabState,
+  getUserByUsername,
+  listAdsByUser,
+  listPendingCollabs,
+  listReviews,
+} from "@/lib/queries";
 import { getCurrentUser } from "@/lib/session";
 import { Profile } from "./Profile";
 
@@ -14,8 +20,23 @@ async function ProfileContent({ params }: { params: PageProps<"/perfil/[usuario]
   ]);
   if (!user) notFound();
   const isMe = me?.id === user.id;
-  const ads = await listAdsByUser(user.id, isMe);
-  return <Profile user={user} ads={ads} isMe={isMe} />;
+  const [ads, reviews, collab, pending] = await Promise.all([
+    listAdsByUser(user.id, isMe),
+    listReviews(user.id),
+    me && !isMe ? getCollabState(me.id, user.id) : Promise.resolve(null),
+    isMe ? listPendingCollabs(user.id) : Promise.resolve([]),
+  ]);
+  return (
+    <Profile
+      user={user}
+      ads={ads}
+      isMe={isMe}
+      loggedIn={Boolean(me)}
+      reviews={reviews}
+      collab={collab}
+      pending={pending}
+    />
+  );
 }
 
 export default function PerfilPage(props: PageProps<"/perfil/[usuario]">) {
