@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { getUser, timeAgo, type Ad } from "@/lib/data";
+import { daysUntil, timeAgo, type Ad } from "@/lib/data";
 import { useLang } from "@/lib/i18n";
 import { Avatar, CategoryChip, ClockIcon, PayChip } from "./ui";
 
-export function AdCard({ ad }: { ad: Ad }) {
+export function AdCard({ ad, linkable = true }: { ad: Ad; linkable?: boolean }) {
   const { t, lang } = useLang();
-  const user = getUser(ad.user);
+  const excerpt = ad.description.length > 160 ? `${ad.description.slice(0, 157)}…` : ad.description;
 
   return (
     <article className="flex flex-col gap-3 rounded-[14px] border border-line bg-white p-5">
@@ -15,13 +15,17 @@ export function AdCard({ ad }: { ad: Ad }) {
         <CategoryChip category={ad.category} />
         <PayChip pay={ad.pay} />
       </div>
-      <h3 className="m-0 font-display text-[19px] leading-tight font-bold">
-        <Link href={`/anuncio/${ad.id}`} className="text-ink no-underline hover:underline">
-          {ad.title}
-        </Link>
+      <h3 className="m-0 font-display text-[19px] leading-tight font-bold break-words">
+        {linkable ? (
+          <Link href={`/anuncio/${ad.id}`} className="text-ink no-underline hover:underline">
+            {ad.title}
+          </Link>
+        ) : (
+          ad.title
+        )}
       </h3>
-      <p className="m-0 text-[15px] leading-normal text-muted">{ad.text}</p>
-      {ad.slots && ad.slots.length > 0 && (
+      <p className="m-0 text-[15px] leading-normal break-words whitespace-pre-line text-muted">{excerpt}</p>
+      {ad.slots.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {ad.slots.map((s) => (
             <span
@@ -38,31 +42,33 @@ export function AdCard({ ad }: { ad: Ad }) {
         </div>
       )}
       <div className="flex items-center justify-between gap-2 text-[13px] text-subtle">
-        <span>{timeAgo(ad.postedHoursAgo, lang)}</span>
+        <span>{timeAgo(ad.createdAt, lang)}</span>
         <span className="flex items-center gap-1">
           <ClockIcon />
-          {t.expiresIn(ad.expiresInDays)}
+          {t.expiresIn(daysUntil(ad.expiresAt))}
         </span>
       </div>
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-line-2 pt-3">
         <Link
-          href={`/perfil/${ad.user}`}
+          href={`/perfil/${ad.user.username}`}
           className="flex min-w-0 items-center gap-2 text-ink no-underline hover:text-ink"
         >
-          <Avatar name={ad.user} color={user?.color ?? "#45454D"} />
+          <Avatar name={ad.user.username} src={ad.user.avatarUrl} />
           <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-semibold">{ad.user}</span>
+            <span className="truncate text-sm font-semibold">{ad.user.username}</span>
             <span className="text-xs font-semibold text-trabajo">
-              {user && user.confirmed > 0 ? t.repCount(user.confirmed) : t.repNew}
+              {ad.user.confirmed > 0 ? t.repCount(ad.user.confirmed) : t.repNew}
             </span>
           </span>
         </Link>
-        <Link
-          href={`/anuncio/${ad.id}`}
-          className="flex min-h-11 flex-none items-center text-sm font-semibold no-underline"
-        >
-          {t.view} →
-        </Link>
+        {linkable && (
+          <Link
+            href={`/anuncio/${ad.id}`}
+            className="flex min-h-11 flex-none items-center text-sm font-semibold no-underline"
+          >
+            {t.view} →
+          </Link>
+        )}
       </div>
     </article>
   );

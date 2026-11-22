@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { PublicUser } from "@/lib/data";
 import { useLang, type Lang } from "@/lib/i18n";
 import { Avatar, LogoMark } from "./ui";
-
-/** Usuario de ejemplo hasta que conectemos el inicio de sesión con Discord. */
-export const CURRENT_USER = { username: "kairo.dev", color: "#7A3FC4" };
 
 export function LangToggle() {
   const { lang, setLang, t } = useLang();
@@ -34,19 +32,36 @@ export function LangToggle() {
   );
 }
 
-export function SiteHeader() {
+export function LoginButton({ next, className = "" }: { next?: string; className?: string }) {
+  const { t } = useLang();
+  const pathname = usePathname();
+  const target = next ?? pathname ?? "/";
+  return (
+    <a
+      href={`/api/auth/login?next=${encodeURIComponent(target)}`}
+      className={`flex min-h-11 items-center gap-2 rounded-[10px] bg-[#5865F2] px-4 text-[15px] font-semibold text-white no-underline hover:bg-[#4752C4] hover:text-white ${className}`}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M19.3 5.3A16.6 16.6 0 0015.2 4l-.5 1a15.4 15.4 0 00-5.4 0L8.8 4a16.6 16.6 0 00-4.1 1.3C2.1 9.1 1.4 12.8 1.7 16.5a16.7 16.7 0 005.1 2.5l1.1-1.7a10.8 10.8 0 01-1.7-.8l.4-.3a11.9 11.9 0 0010.8 0l.4.3a10.8 10.8 0 01-1.7.8l1.1 1.7a16.6 16.6 0 005.1-2.5c.4-4.3-.7-8-3-11.2zM8.7 14.2c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2zm6.6 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2z" />
+      </svg>
+      {t.login}
+    </a>
+  );
+}
+
+export function SiteHeader({ user }: { user: PublicUser | null }) {
   const { t } = useLang();
   const pathname = usePathname();
   if (pathname === "/bienvenida") return null;
 
-  const nav = [
-    { href: "/", label: t.navExplore, active: pathname === "/" },
-    {
-      href: `/perfil/${CURRENT_USER.username}`,
+  const nav = [{ href: "/", label: t.navExplore, active: pathname === "/" }];
+  if (user) {
+    nav.push({
+      href: `/perfil/${user.username}`,
       label: t.navProfile,
-      active: pathname.startsWith("/perfil"),
-    },
-  ];
+      active: pathname === `/perfil/${user.username}`,
+    });
+  }
 
   return (
     <header className="border-b border-line bg-white">
@@ -73,13 +88,27 @@ export function SiteHeader() {
         </nav>
         <div className="flex flex-wrap items-center gap-2.5">
           <LangToggle />
-          <Link
-            href={`/perfil/${CURRENT_USER.username}`}
-            className="hidden min-h-11 items-center gap-2 rounded-[10px] border border-field bg-white py-0 pr-3.5 pl-1.5 sm:flex text-[15px] font-semibold text-ink no-underline hover:text-ink"
-          >
-            <Avatar name={CURRENT_USER.username} color={CURRENT_USER.color} size={32} />
-            {CURRENT_USER.username}
-          </Link>
+          {user ? (
+            <>
+              <Link
+                href={`/perfil/${user.username}`}
+                className="hidden min-h-11 items-center gap-2 rounded-[10px] border border-field bg-white py-0 pr-3.5 pl-1.5 text-[15px] font-semibold text-ink no-underline hover:text-ink sm:flex"
+              >
+                <Avatar name={user.username} src={user.avatarUrl} size={32} />
+                {user.username}
+              </Link>
+              <form action="/api/auth/logout" method="post">
+                <button
+                  type="submit"
+                  className="min-h-11 cursor-pointer rounded-[10px] border-0 bg-transparent px-2 text-sm font-semibold text-muted hover:text-ink"
+                >
+                  {t.logout}
+                </button>
+              </form>
+            </>
+          ) : (
+            <LoginButton />
+          )}
           <Link
             href="/publicar"
             className="flex min-h-11 items-center gap-2 rounded-[10px] bg-servicios px-[18px] text-[15px] font-semibold text-white no-underline hover:bg-[#1E3291] hover:text-white"
@@ -101,5 +130,17 @@ export function SiteHeader() {
         </div>
       </div>
     </header>
+  );
+}
+
+/** Aviso para páginas que necesitan sesión. */
+export function NeedLogin({ next }: { next: string }) {
+  const { t } = useLang();
+  return (
+    <main className="mx-auto flex max-w-[560px] flex-col items-start gap-4 px-6 pt-16 pb-16">
+      <h1 className="m-0 font-display text-[32px] font-bold">{t.needLoginTitle}</h1>
+      <p className="m-0 text-base text-muted">{t.needLoginText}</p>
+      <LoginButton next={next} />
+    </main>
   );
 }

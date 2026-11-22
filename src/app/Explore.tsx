@@ -4,14 +4,14 @@ import { useMemo, useState } from "react";
 import { AdCard } from "@/components/AdCard";
 import { categoryDot } from "@/components/ui";
 import {
-  ads,
-  getUser,
   roleCategories,
+  type Ad,
   type Category,
   type PayType,
   type Role,
   type SkillKey,
 } from "@/lib/data";
+import Link from "next/link";
 import { useLang } from "@/lib/i18n";
 import { useStored, writeStored } from "@/lib/store";
 
@@ -30,7 +30,7 @@ function toggle<T>(list: T[], value: T) {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-export function Explore() {
+export function Explore({ ads, loginError }: { ads: Ad[]; loginError?: boolean }) {
   const { t } = useLang();
   const role = useStored<Role>("enlaza-rol", "todo");
   const [tab, setTab] = useState<Tab>("todos");
@@ -66,20 +66,19 @@ export function Explore() {
       if (pays.length && !pays.includes(ad.pay)) return false;
       if (skills.length && !skills.includes(ad.skill)) return false;
       if (!langs.includes(ad.lang)) return false;
-      if (onlyRep && !((getUser(ad.user)?.confirmed ?? 0) > 0)) return false;
+      if (onlyRep && !(ad.user.confirmed > 0)) return false;
       if (q) {
-        const haystack = `${ad.title} ${ad.text} ${ad.user} ${t.skills[ad.skill]}`.toLowerCase();
+        const haystack = `${ad.title} ${ad.description} ${ad.user.username} ${t.skills[ad.skill]}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
     return [...list].sort((a, b) => {
-      if (sort === "rep")
-        return (getUser(b.user)?.confirmed ?? 0) - (getUser(a.user)?.confirmed ?? 0);
-      if (sort === "exp") return a.expiresInDays - b.expiresInDays;
-      return a.postedHoursAgo - b.postedHoursAgo;
+      if (sort === "rep") return b.user.confirmed - a.user.confirmed;
+      if (sort === "exp") return a.expiresAt.localeCompare(b.expiresAt);
+      return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [allowed, tab, pays, skills, langs, onlyRep, query, sort, t]);
+  }, [ads, allowed, tab, pays, skills, langs, onlyRep, query, sort, t]);
 
   const clear = () => {
     setPays([]);
@@ -94,6 +93,11 @@ export function Explore() {
 
   return (
     <main>
+      {loginError && (
+        <p role="alert" className="mx-auto mt-6 max-w-[1240px] rounded-xl border border-[#F1B9B9] bg-[#FFF7F7] px-4 py-3 text-sm text-danger">
+          {t.loginError}
+        </p>
+      )}
       <section className="mx-auto flex max-w-[1240px] flex-col gap-5 px-6 pt-14 pb-7">
         <h1 className="m-0 max-w-[860px] font-display text-[clamp(34px,5vw,56px)] leading-[1.05] font-bold tracking-tight">
           {t.heroTitle}
@@ -332,9 +336,20 @@ export function Explore() {
               </select>
             </label>
           </div>
-          {results.length === 0 ? (
+          {ads.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-[14px] border border-dashed border-field bg-white px-8 py-12 text-center">
+              <h2 className="m-0 font-display text-2xl font-bold">{t.emptyTitle}</h2>
+              <p className="m-0 max-w-[460px] text-muted">{t.emptyText}</p>
+              <Link
+                href="/publicar"
+                className="mt-2 flex min-h-11 items-center rounded-[10px] bg-servicios px-5 font-semibold text-white no-underline hover:text-white"
+              >
+                {t.publish}
+              </Link>
+            </div>
+          ) : results.length === 0 ? (
             <p className="m-0 rounded-[14px] border border-dashed border-field bg-white p-8 text-center text-muted">
-              {t.noResults}
+              {t.emptyFiltered}
             </p>
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
@@ -343,7 +358,6 @@ export function Explore() {
               ))}
             </div>
           )}
-          <p className="m-0 text-[13px] text-subtle">{t.sampleNote}</p>
         </section>
       </div>
     </main>

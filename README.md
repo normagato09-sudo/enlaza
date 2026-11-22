@@ -2,16 +2,18 @@
 
 Web para ofrecer servicios, buscar trabajo y encontrar socio o equipo para un proyecto. Sustituye los canales de Discord tipo `#ofrecer-servicios`, `#buscar-trabajo` y `#buscar-socio` por un solo sitio ordenado.
 
-## Estado: paso 1 de la versión de prueba
+## Estado: versión 1 funcionando
 
-- Páginas: Inicio (`/`), Bienvenida (`/bienvenida`), Anuncio (`/anuncio/[id]`), Perfil (`/perfil/[usuario]`) y Publicar (`/publicar`).
-- Idiomas: español e inglés (botón ES/EN).
-- "¿Qué buscas?": filtra los anuncios según quieras trabajar, contratar o tengas un proyecto.
-- Filtros reales: búsqueda, tipo (pagado / voluntario / reparto de beneficios), habilidad, reputación e idioma.
-- Publicar: etiqueta de pago obligatoria, aviso automático de posible estafa, puestos de equipo y caducidad.
-- **Los anuncios y perfiles son de ejemplo** (`src/lib/data.ts`). Todavía no hay base de datos ni inicio de sesión.
+- Inicio de sesión con Discord (OAuth propio, cookie firmada).
+- Base de datos Postgres (Neon desde Vercel Storage). Las tablas se crean solas.
+- Publicar anuncios con etiqueta de pago obligatoria, caducidad (1 o 4 semanas) y puestos de equipo.
+- Aviso de posible estafa: esos anuncios quedan "en revisión" y solo los ve quien los publicó. Con 3 denuncias, un anuncio también pasa a revisión.
+- Apuntarse a un puesto; quien publica ve las solicitudes y acepta a la persona (el puesto queda cubierto).
+- Perfil con los anuncios de cada persona; renovar anuncios caducados o a punto de caducar; borrar anuncios.
+- Español e inglés (botón ES/EN).
 
-Próximos pasos previstos: base de datos (Neon desde Vercel), inicio de sesión con Discord y publicación real de anuncios. El bot de Discord queda para una fase posterior.
+Variables de entorno en Vercel: `DATABASE_URL` (la pone Neon), `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`.
+Redirect de Discord: `https://<dominio>/api/auth/callback`.
 
 ## Tecnología
 
@@ -24,4 +26,4 @@ npm install
 npm run dev
 ```
 
-Abre http://localhost:3000.
+Abre http://localhost:3000. Sin `DATABASE_URL` se usa una base de datos en memoria, y sin Discord configurado puedes entrar con una cuenta de prueba en `/api/auth/dev?u=prueba` (solo en local).

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Category, PayType } from "@/lib/data";
+import { colorFor, type Category, type PayType } from "@/lib/data";
 import { useLang } from "@/lib/i18n";
 
 export const categoryStyle: Record<Category, string> = {
@@ -45,18 +45,31 @@ export function PayChip({ pay }: { pay: PayType }) {
 
 export function Avatar({
   name,
-  color,
+  src,
   size = 34,
 }: {
   name: string;
-  color: string;
+  src?: string | null;
   size?: number;
 }) {
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        className="flex-none rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
   return (
     <span
       aria-hidden="true"
       className="flex flex-none items-center justify-center rounded-full font-bold text-white"
-      style={{ width: size, height: size, background: color, fontSize: size * 0.4 }}
+      style={{ width: size, height: size, background: colorFor(name), fontSize: size * 0.4 }}
     >
       {name.charAt(0).toUpperCase()}
     </span>

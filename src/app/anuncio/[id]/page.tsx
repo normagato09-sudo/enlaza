@@ -1,14 +1,43 @@
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
-import { ads, getAd } from "@/lib/data";
+import { Suspense } from "react";
+import { isExpired } from "@/lib/data";
+import { getAdById, hasReported, listApplications, myApplicationSlots } from "@/lib/queries";
+import { getCurrentUser } from "@/lib/session";
 import { AdDetail } from "./AdDetail";
 
-export function generateStaticParams() {
-  return ads.map((a) => ({ id: a.id }));
+async function AdContent({ params }: { params: PageProps<"/anuncio/[id]">["params"] }) {
+  await connection();
+  const { id } = await params;
+  const [ad, me] = await Promise.all([getAdById(id), getCurrentUser()]);
+  const isOwner = Boolean(me && ad && ad.user.id === me.id);
+  const expired = ad ? isExpired(ad.expiresAt) : true;
+  // Los anuncios en revisión o caducados solo los ve quien los publicó.
+  if (!ad || ((ad.status !== "active" || expired) && !isOwner)) notFound();
+
+  const [applications, mySlots, reported] = await Promise.all([
+    isOwner ? listApplications(ad.id) : Promise.resolve([]),
+    me && !isOwner ? myApplicationSlots(ad.id, me.id) : Promise.resolve([]),
+    me ? hasReported(ad.id, me.id) : Promise.resolve(false),
+  ]);
+
+  return (
+    <AdDetail
+      ad={ad}
+      me={me}
+      isOwner={isOwner}
+      expired={expired}
+      applications={applications}
+      mySlots={mySlots}
+      reported={reported}
+    />
+  );
 }
 
-export default async function AnuncioPage({ params }: PageProps<"/anuncio/[id]">) {
-  const { id } = await params;
-  const ad = getAd(id);
-  if (!ad) notFound();
-  return <AdDetail id={ad.id} />;
+export default function AnuncioPage(props: PageProps<"/anuncio/[id]">) {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-[1240px] px-6 pt-6" aria-busy="true" />}>
+      <AdContent params={props.params} />
+    </Suspense>
+  );
 }
