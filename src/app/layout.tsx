@@ -5,7 +5,7 @@ import "@fontsource-variable/space-grotesk";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { LogoMark } from "@/components/ui";
-import { getCurrentUser } from "@/lib/session";
+import { getViewer } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Enlaza · Servicios, trabajo y equipo para tu proyecto",
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 async function HeaderWithUser() {
-  const user = await getCurrentUser();
+  const user = await getViewer();
   return <SiteHeader user={user} />;
 }
 

@@ -11,6 +11,7 @@ export type UserRow = {
   avatar: string | null;
   confirmed_count: number;
   created_at: string | Date;
+  banned?: boolean;
 };
 
 type AdRow = {
@@ -26,7 +27,15 @@ type AdRow = {
   status: "active" | "review";
   created_at: string | Date;
   expires_at: string | Date;
-} & { u_username: string; u_display_name: string | null; u_avatar: string | null; u_confirmed: number; u_created_at: string | Date };
+} & {
+  u_username: string;
+  u_display_name: string | null;
+  u_avatar: string | null;
+  u_confirmed: number;
+  u_created_at: string | Date;
+  u_banned: boolean;
+  report_count?: number;
+};
 
 const iso = (v: string | Date) => new Date(v).toISOString();
 
@@ -44,6 +53,7 @@ export function toPublicUser(r: UserRow): PublicUser {
     avatarUrl: avatarUrl(r.discord_id, r.avatar),
     confirmed: Number(r.confirmed_count) || 0,
     memberSince: iso(r.created_at),
+    banned: Boolean(r.banned),
   };
 }
 
@@ -67,19 +77,21 @@ function toAd(r: AdRow): Ad {
       avatar: r.u_avatar,
       confirmed_count: r.u_confirmed,
       created_at: r.u_created_at,
+      banned: r.u_banned,
     }),
   };
 }
 
 const AD_SELECT = `
   SELECT a.*, u.username AS u_username, u.display_name AS u_display_name,
-         u.avatar AS u_avatar, u.confirmed_count AS u_confirmed, u.created_at AS u_created_at
+         u.avatar AS u_avatar, u.confirmed_count AS u_confirmed, u.created_at AS u_created_at,
+         u.banned AS u_banned
   FROM ads a JOIN users u ON u.discord_id = a.user_id`;
 
 /** Anuncios visibles para todo el mundo: activos y sin caducar. */
 export async function listActiveAds(): Promise<Ad[]> {
   const rows = await query<AdRow>(
-    `${AD_SELECT} WHERE a.status = 'active' AND a.expires_at > now() ORDER BY a.created_at DESC LIMIT 500`,
+    `${AD_SELECT} WHERE a.status = 'active' AND a.expires_at > now() AND NOT u.banned ORDER BY a.created_at DESC LIMIT 500`,
   );
   return rows.map(toAd);
 }
@@ -143,6 +155,23 @@ export async function upsertUser(u: {
     [u.id, u.username, u.displayName, u.avatar],
   );
   return { isNew: Boolean(rows[0]?.inserted) };
+}
+
+/** Para moderar: anuncios en revisión y anuncios activos con alguna denuncia. */
+export async function listForModeration(): Promise<{ ad: Ad; reports: number }[]> {
+  const rows = await query<AdRow>(
+    `${AD_SELECT.replace("FROM ads a", ", (SELECT count(*)::int FROM reports r WHERE r.ad_id = a.id) AS report_count FROM ads a")}
+     WHERE a.status = 'review'
+        OR EXISTS (SELECT 1 FROM reports r WHERE r.ad_id = a.id)
+     ORDER BY (a.status = 'review') DESC, a.created_at DESC
+     LIMIT 200`,
+  );
+  return rows.map((r) => ({ ad: toAd(r), reports: Number(r.report_count) || 0 }));
+}
+
+export async function listBannedUsers(): Promise<PublicUser[]> {
+  const rows = await query<UserRow>("SELECT * FROM users WHERE banned ORDER BY username");
+  return rows.map(toPublicUser);
 }
 
 export function newId() {

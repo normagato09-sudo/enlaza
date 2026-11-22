@@ -340,3 +340,14 @@ export function PublishForm({ username }: { username: string }) {
     </form>
   );
 }
+
+export function BannedNotice() {
+  const { t } = useLang();
+  return (
+    <main className="mx-auto max-w-[560px] px-6 pt-16 pb-16">
+      <p role="alert" className="m-0 rounded-xl border border-[#F1B9B9] bg-[#FFF7F7] px-4 py-3 text-danger">
+        {t.bannedNotice}
+      </p>
+    </main>
+  );
+}

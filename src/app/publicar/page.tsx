@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import { NeedLogin } from "@/components/SiteHeader";
 import { getCurrentUser } from "@/lib/session";
-import { PublishForm } from "./PublishForm";
+import { BannedNotice, PublishForm } from "./PublishForm";
 
 async function PublishContent() {
   const user = await getCurrentUser();
   if (!user) return <NeedLogin next="/publicar" />;
+  if (user.banned) return <BannedNotice />;
   return <PublishForm username={user.username} />;
 }
 

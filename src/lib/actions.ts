@@ -13,7 +13,7 @@ import {
   type Slot,
 } from "./data";
 import { getAdById, newId } from "./queries";
-import { getCurrentUser } from "./session";
+import { getCurrentUser, isAdmin } from "./session";
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -33,6 +33,7 @@ export type NewAdInput = {
 export async function createAd(input: NewAdInput): Promise<Result<{ id: string; review: boolean }>> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "login" };
+  if (user.banned) return { ok: false, error: "banned" };
 
   const title = String(input.title ?? "").trim().slice(0, 90);
   const description = String(input.description ?? "").trim().slice(0, 1000);
@@ -66,6 +67,7 @@ export async function createAd(input: NewAdInput): Promise<Result<{ id: string; 
 export async function applyToSlot(adId: string, slot: string): Promise<Result> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "login" };
+  if (user.banned) return { ok: false, error: "banned" };
   const ad = await getAdById(adId);
   if (!ad || ad.status !== "active") return { ok: false, error: "notfound" };
   if (ad.user.id === user.id) return { ok: false, error: "own" };
@@ -95,6 +97,7 @@ export async function acceptApplicant(adId: string, slot: string, username: stri
 export async function reportAd(adId: string): Promise<Result> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "login" };
+  if (user.banned) return { ok: false, error: "banned" };
   await query("INSERT INTO reports (ad_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING", [adId, user.id]);
   const rows = await query<{ n: number }>("SELECT count(*)::int AS n FROM reports WHERE ad_id = $1", [adId]);
   if ((rows[0]?.n ?? 0) >= REPORTS_TO_HIDE) {
@@ -119,5 +122,46 @@ export async function deleteAd(adId: string): Promise<Result> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "login" };
   await query("DELETE FROM ads WHERE id = $1 AND user_id = $2", [adId, user.id]);
+  return { ok: true };
+}
+
+// ---------- Moderación (solo moderadores) ----------
+
+async function requireAdmin() {
+  const user = await getCurrentUser();
+  return user && isAdmin(user) ? user : null;
+}
+
+/** Aprueba un anuncio: vuelve a ser visible y se borran sus denuncias. */
+export async function approveAd(adId: string): Promise<Result> {
+  if (!(await requireAdmin())) return { ok: false, error: "forbidden" };
+  await query("UPDATE ads SET status = 'active' WHERE id = $1", [adId]);
+  await query("DELETE FROM reports WHERE ad_id = $1", [adId]);
+  refresh();
+  return { ok: true };
+}
+
+/** Descarta las denuncias de un anuncio que sigue visible. */
+export async function dismissReports(adId: string): Promise<Result> {
+  if (!(await requireAdmin())) return { ok: false, error: "forbidden" };
+  await query("DELETE FROM reports WHERE ad_id = $1", [adId]);
+  refresh();
+  return { ok: true };
+}
+
+export async function adminDeleteAd(adId: string): Promise<Result> {
+  if (!(await requireAdmin())) return { ok: false, error: "forbidden" };
+  await query("DELETE FROM ads WHERE id = $1", [adId]);
+  refresh();
+  return { ok: true };
+}
+
+/** Bloquea a una persona: sus anuncios dejan de verse y no puede publicar ni apuntarse. */
+export async function setBanned(userId: string, banned: boolean): Promise<Result> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: "forbidden" };
+  if (admin.id === userId) return { ok: false, error: "self" };
+  await query("UPDATE users SET banned = $2 WHERE discord_id = $1", [userId, banned]);
+  refresh();
   return { ok: true };
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { PublicUser } from "@/lib/data";
+import type { Viewer } from "@/lib/data";
 import { useLang, type Lang } from "@/lib/i18n";
 import { Avatar, LogoMark } from "./ui";
 
@@ -49,7 +49,7 @@ export function LoginButton({ next, className = "" }: { next?: string; className
   );
 }
 
-export function SiteHeader({ user }: { user: PublicUser | null }) {
+export function SiteHeader({ user }: { user: Viewer | null }) {
   const { t } = useLang();
   const pathname = usePathname();
   if (pathname === "/bienvenida") return null;
@@ -61,6 +61,9 @@ export function SiteHeader({ user }: { user: PublicUser | null }) {
       label: t.navProfile,
       active: pathname === `/perfil/${user.username}`,
     });
+    if (user.isAdmin) {
+      nav.push({ href: "/moderacion", label: t.modNav, active: pathname === "/moderacion" });
+    }
   }
 
   return (

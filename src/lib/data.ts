@@ -25,7 +25,12 @@ export type PublicUser = {
   avatarUrl: string | null;
   confirmed: number;
   memberSince: string; // ISO
+  banned: boolean;
 };
+
+export type Viewer = PublicUser & { isAdmin: boolean };
+
+export type ModerationItem = Ad & { reports: number; scam: boolean };
 
 export type Ad = {
   id: string;

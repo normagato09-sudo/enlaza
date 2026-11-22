@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { query } from "./db";
-import type { PublicUser } from "./data";
+import type { PublicUser, Viewer } from "./data";
 import { toPublicUser, type UserRow } from "./queries";
 
 export const SESSION_COOKIE = "enlaza_session";
@@ -56,4 +56,22 @@ export async function getCurrentUser(): Promise<PublicUser | null> {
   if (!userId) return null;
   const rows = await query<UserRow>("SELECT * FROM users WHERE discord_id = $1", [userId]);
   return rows[0] ? toPublicUser(rows[0]) : null;
+}
+
+/**
+ * Moderadores: variable ENLAZA_ADMINS en Vercel con nombres de usuario
+ * de Discord (o IDs) separados por comas. Ej.: "norma,lucas"
+ */
+export function isAdmin(user: Pick<PublicUser, "id" | "username"> | null) {
+  if (!user) return false;
+  const list = (process.env.ENLAZA_ADMINS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(user.username.toLowerCase()) || list.includes(user.id);
+}
+
+export async function getViewer(): Promise<Viewer | null> {
+  const user = await getCurrentUser();
+  return user ? { ...user, isAdmin: isAdmin(user) } : null;
 }
